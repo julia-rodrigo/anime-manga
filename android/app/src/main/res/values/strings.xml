@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">anime-manga</string>
+    <string name="title_activity_main">anime-manga</string>
+    <string name="package_name">com.juliarodrigo.animemanga</string>
+    <string name="custom_url_scheme">com.juliarodrigo.animemanga</string>
+</resources>

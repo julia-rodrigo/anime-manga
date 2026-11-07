@@ -1,0 +1,10 @@
+# Xcode / CocoaPods / SPM build artifacts
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+Pods/
+*.ipa
+*.dSYM.zip
+*.dSYM
