@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: #0b0b10;
+  color: #e8e6f0;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+* {
+  scrollbar-color: #4b4560 #15141c;
+}
