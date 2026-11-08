@@ -1,18 +1,54 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card } from '../components/Card'
+import { ErrorRetry } from '../components/ErrorRetry'
 import { Loader } from '../components/Loader'
 import { jikan, type AnimeEntry, type MangaEntry } from '../lib/jikan'
 
+type RowState<T> = { status: 'loading' | 'error' | 'ready'; items: T[] }
+
 export function Discover() {
-  const [season, setSeason] = useState<AnimeEntry[] | null>(null)
-  const [topAnime, setTopAnime] = useState<AnimeEntry[] | null>(null)
-  const [topManga, setTopManga] = useState<MangaEntry[] | null>(null)
+  const [season, setSeason] = useState<RowState<AnimeEntry>>({
+    status: 'loading',
+    items: [],
+  })
+  const [topAnime, setTopAnime] = useState<RowState<AnimeEntry>>({
+    status: 'loading',
+    items: [],
+  })
+  const [topManga, setTopManga] = useState<RowState<MangaEntry>>({
+    status: 'loading',
+    items: [],
+  })
+
+  const loadSeason = useCallback(() => {
+    setSeason({ status: 'loading', items: [] })
+    jikan
+      .seasonNow()
+      .then((r) => setSeason({ status: 'ready', items: r.data.slice(0, 12) }))
+      .catch(() => setSeason({ status: 'error', items: [] }))
+  }, [])
+
+  const loadTopAnime = useCallback(() => {
+    setTopAnime({ status: 'loading', items: [] })
+    jikan
+      .topAnime()
+      .then((r) => setTopAnime({ status: 'ready', items: r.data.slice(0, 12) }))
+      .catch(() => setTopAnime({ status: 'error', items: [] }))
+  }, [])
+
+  const loadTopManga = useCallback(() => {
+    setTopManga({ status: 'loading', items: [] })
+    jikan
+      .topManga()
+      .then((r) => setTopManga({ status: 'ready', items: r.data.slice(0, 12) }))
+      .catch(() => setTopManga({ status: 'error', items: [] }))
+  }, [])
 
   useEffect(() => {
-    jikan.seasonNow().then((r) => setSeason(r.data.slice(0, 12)))
-    jikan.topAnime().then((r) => setTopAnime(r.data.slice(0, 12)))
-    jikan.topManga().then((r) => setTopManga(r.data.slice(0, 12)))
-  }, [])
+    loadSeason()
+    loadTopAnime()
+    loadTopManga()
+  }, [loadSeason, loadTopAnime, loadTopManga])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -26,30 +62,34 @@ export function Discover() {
         </p>
       </section>
 
-      <Row title="This season" items={season} kind="anime" />
-      <Row title="Top anime" items={topAnime} kind="anime" />
-      <Row title="Top manga" items={topManga} kind="manga" />
+      <Row title="This season" state={season} kind="anime" onRetry={loadSeason} />
+      <Row title="Top anime" state={topAnime} kind="anime" onRetry={loadTopAnime} />
+      <Row title="Top manga" state={topManga} kind="manga" onRetry={loadTopManga} />
     </div>
   )
 }
 
-function Row({
+function Row<T extends AnimeEntry | MangaEntry>({
   title,
-  items,
+  state,
   kind,
+  onRetry,
 }: {
   title: string
-  items: (AnimeEntry | MangaEntry)[] | null
+  state: RowState<T>
   kind: 'anime' | 'manga'
+  onRetry: () => void
 }) {
   return (
     <section className="mb-10">
       <h2 className="mb-3 text-xl font-semibold text-white">{title}</h2>
-      {items === null ? (
+      {state.status === 'loading' ? (
         <Loader />
+      ) : state.status === 'error' ? (
+        <ErrorRetry message="Couldn't load this from Jikan right now." onRetry={onRetry} />
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-          {items.map((it) => (
+          {state.items.map((it) => (
             <Card
               key={it.mal_id}
               to={`/${kind}/${it.mal_id}`}

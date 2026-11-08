@@ -1,16 +1,54 @@
 const BASE = 'https://api.jikan.moe/v4'
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`)
-  if (!res.ok) {
-    if (res.status === 429) {
-      await new Promise((r) => setTimeout(r, 800))
-      return get<T>(path)
+// Jikan's public API enforces a strict rate limit (~3 req/s, 60 req/min).
+// Firing requests in parallel trips it immediately, so every call is funneled
+// through a single queue with spacing between requests.
+let queue: Promise<unknown> = Promise.resolve()
+const MIN_GAP_MS = 400
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = queue.then(async () => {
+    const result = await task()
+    await new Promise((r) => setTimeout(r, MIN_GAP_MS))
+    return result
+  })
+  // Swallow so one failed task doesn't poison the chain for later callers.
+  queue = run.catch(() => undefined)
+  return run
+}
+
+async function fetchOnce<T>(path: string): Promise<T> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  try {
+    const res = await fetch(`${BASE}${path}`, { signal: controller.signal })
+    if (!res.ok) {
+      throw new Error(`Jikan request failed: ${res.status}`)
     }
-    throw new Error(`Jikan request failed: ${res.status}`)
+    return (await res.json()) as T
+  } finally {
+    clearTimeout(timeout)
   }
-  const json = await res.json()
-  return json as T
+}
+
+async function get<T>(path: string): Promise<T> {
+  return enqueue(async () => {
+    const maxAttempts = 5
+    let lastError: unknown
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        return await fetchOnce<T>(path)
+      } catch (err) {
+        lastError = err
+        const isRateLimited = err instanceof Error && err.message.includes('429')
+        if (!isRateLimited && !(err instanceof Error && err.message === 'Failed to fetch')) {
+          throw err
+        }
+        await new Promise((r) => setTimeout(r, 600 * 2 ** attempt))
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('Jikan request failed')
+  })
 }
 
 export interface JikanImage {

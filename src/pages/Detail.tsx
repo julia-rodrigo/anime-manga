@@ -1,20 +1,34 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { ErrorRetry } from '../components/ErrorRetry'
 import { Loader } from '../components/Loader'
 import { jikan, type AnimeEntry, type MangaEntry } from '../lib/jikan'
 
+type Status = 'loading' | 'error' | 'ready'
+
 export function Detail() {
   const { kind, id } = useParams<{ kind: 'anime' | 'manga'; id: string }>()
+  const [status, setStatus] = useState<Status>('loading')
   const [entry, setEntry] = useState<AnimeEntry | MangaEntry | null>(null)
 
-  useEffect(() => {
+  function load() {
     if (!id) return
-    setEntry(null)
+    setStatus('loading')
     const req = kind === 'manga' ? jikan.mangaById(id) : jikan.animeById(id)
-    req.then((r) => setEntry(r.data))
-  }, [kind, id])
+    req
+      .then((r) => {
+        setEntry(r.data)
+        setStatus('ready')
+      })
+      .catch(() => setStatus('error'))
+  }
 
-  if (!entry) return <Loader />
+  useEffect(load, [kind, id])
+
+  if (status === 'loading') return <Loader />
+  if (status === 'error' || !entry) {
+    return <ErrorRetry message="Couldn't load this from Jikan right now." onRetry={load} />
+  }
 
   const isAnime = kind === 'anime'
   const anime = entry as AnimeEntry
