@@ -17,13 +17,21 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run
 }
 
+class HttpStatusError extends Error {
+  status: number
+  constructor(status: number) {
+    super(`Jikan request failed: ${status}`)
+    this.status = status
+  }
+}
+
 async function fetchOnce<T>(path: string): Promise<T> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15000)
+  const timeout = setTimeout(() => controller.abort(), 7000)
   try {
     const res = await fetch(`${BASE}${path}`, { signal: controller.signal })
     if (!res.ok) {
-      throw new Error(`Jikan request failed: ${res.status}`)
+      throw new HttpStatusError(res.status)
     }
     return (await res.json()) as T
   } finally {
@@ -31,20 +39,26 @@ async function fetchOnce<T>(path: string): Promise<T> {
   }
 }
 
+// At most ~11s before a failure surfaces to the UI (2 retries, short
+// backoff) — long enough to ride out a rate-limit blip, short enough that a
+// real failure doesn't look like a frozen screen. Retries on rate-limiting,
+// timeouts, and generic network/CORS failures; anything else (a real 4xx/5xx
+// other than 429) fails immediately.
 async function get<T>(path: string): Promise<T> {
   return enqueue(async () => {
-    const maxAttempts = 5
+    const maxAttempts = 3
     let lastError: unknown
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         return await fetchOnce<T>(path)
       } catch (err) {
         lastError = err
-        const isRateLimited = err instanceof Error && err.message.includes('429')
-        if (!isRateLimited && !(err instanceof Error && err.message === 'Failed to fetch')) {
-          throw err
+        const isHttpError = err instanceof HttpStatusError
+        const shouldRetry = isHttpError ? err.status === 429 : true
+        if (!shouldRetry) throw err
+        if (attempt < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, 500 * 2 ** attempt))
         }
-        await new Promise((r) => setTimeout(r, 600 * 2 ** attempt))
       }
     }
     throw lastError instanceof Error ? lastError : new Error('Jikan request failed')
