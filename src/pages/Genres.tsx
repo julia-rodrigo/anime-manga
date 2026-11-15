@@ -1,76 +1,40 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ErrorRetry } from '../components/ErrorRetry'
 import { GenreChip } from '../components/GenreChip'
 import { Loader } from '../components/Loader'
-import { jikan, type JikanGenre } from '../lib/jikan'
-
-type Status = 'loading' | 'error' | 'ready'
+import { fetchGenres, KIND_LABEL, KINDS, type Kind } from '../lib/api'
+import { useAsync } from '../lib/useAsync'
 
 export function Genres() {
-  const [animeStatus, setAnimeStatus] = useState<Status>('loading')
-  const [animeGenres, setAnimeGenres] = useState<JikanGenre[]>([])
-  const [mangaStatus, setMangaStatus] = useState<Status>('loading')
-  const [mangaGenres, setMangaGenres] = useState<JikanGenre[]>([])
-
-  function loadAnimeGenres() {
-    setAnimeStatus('loading')
-    jikan
-      .animeGenres()
-      .then((r) => {
-        setAnimeGenres(r.data)
-        setAnimeStatus('ready')
-      })
-      .catch(() => setAnimeStatus('error'))
-  }
-
-  function loadMangaGenres() {
-    setMangaStatus('loading')
-    jikan
-      .mangaGenres()
-      .then((r) => {
-        setMangaGenres(r.data)
-        setMangaStatus('ready')
-      })
-      .catch(() => setMangaStatus('error'))
-  }
-
-  useEffect(() => {
-    loadAnimeGenres()
-    loadMangaGenres()
-  }, [])
+  const [kind, setKind] = useState<Kind>('anime')
+  const genres = useAsync(fetchGenres, [])
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-bold text-white">Genres</h1>
+      <h1 className="mb-4 text-2xl font-bold text-white">Genres</h1>
 
-      <h2 className="mb-3 text-lg font-semibold text-white/80">Anime genres</h2>
-      {animeStatus === 'loading' ? (
-        <Loader />
-      ) : animeStatus === 'error' ? (
-        <ErrorRetry
-          message="Couldn't load anime genres right now."
-          onRetry={loadAnimeGenres}
-        />
-      ) : (
-        <div className="mb-10 flex flex-wrap gap-2">
-          {animeGenres.map((g) => (
-            <GenreChip key={g.mal_id} id={g.mal_id} name={g.name} kind="anime" />
-          ))}
-        </div>
-      )}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {KINDS.map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              k === kind ? 'bg-fuchsia-500 text-white' : 'bg-white/10 text-white/70 hover:bg-white/20'
+            }`}
+          >
+            {KIND_LABEL[k]}
+          </button>
+        ))}
+      </div>
 
-      <h2 className="mb-3 text-lg font-semibold text-white/80">Manga genres</h2>
-      {mangaStatus === 'loading' ? (
+      {genres.status === 'loading' ? (
         <Loader />
-      ) : mangaStatus === 'error' ? (
-        <ErrorRetry
-          message="Couldn't load manga genres right now."
-          onRetry={loadMangaGenres}
-        />
+      ) : genres.status === 'error' ? (
+        <ErrorRetry message="Couldn't load genres. Check your connection." onRetry={genres.reload} />
       ) : (
         <div className="flex flex-wrap gap-2">
-          {mangaGenres.map((g) => (
-            <GenreChip key={g.mal_id} id={g.mal_id} name={g.name} kind="manga" />
+          {genres.data.map((g) => (
+            <GenreChip key={g} name={g} kind={kind} />
           ))}
         </div>
       )}
