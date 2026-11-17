@@ -32,6 +32,33 @@ export interface Entry {
   description: string
 }
 
+export interface WatchLink {
+  site: string
+  url: string
+  color: string | null
+  language: string | null
+}
+
+export interface Episode {
+  number: number | null
+  title: string
+  thumbnail: string | null
+  url: string
+  site: string
+}
+
+export interface Trailer {
+  embedUrl: string
+  watchUrl: string
+  thumbnail: string | null
+}
+
+export interface EntryDetail extends Entry {
+  trailer: Trailer | null
+  links: WatchLink[]
+  episodeLinks: Episode[]
+}
+
 interface RawMedia {
   id: number
   idMal: number | null
@@ -47,6 +74,9 @@ interface RawMedia {
   coverImage: { large: string | null; extraLarge: string | null }
   startDate: { year: number | null } | null
   description?: string | null
+  trailer?: { id: string | null; site: string | null; thumbnail: string | null } | null
+  externalLinks?: { site: string; url: string | null; type: string | null; color: string | null; language: string | null }[] | null
+  streamingEpisodes?: { title: string | null; thumbnail: string | null; url: string | null; site: string | null }[] | null
 }
 
 const FIELDS = `
@@ -242,12 +272,60 @@ export async function fetchGenres(): Promise<string[]> {
   return data.GenreCollection.filter((g) => g !== 'Hentai')
 }
 
-export async function fetchEntry(id: number): Promise<Entry> {
+function https(url: string) {
+  return url.replace(/^http:\/\//i, 'https://')
+}
+
+function toTrailer(t: RawMedia['trailer']): Trailer | null {
+  const id = t?.id?.trim()
+  if (!id || !/^[\w-]+$/.test(id)) return null
+  if (t?.site === 'youtube') {
+    return {
+      embedUrl: `https://www.youtube-nocookie.com/embed/${id}?playsinline=1&rel=0`,
+      watchUrl: `https://www.youtube.com/watch?v=${id}`,
+      thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    }
+  }
+  if (t?.site === 'dailymotion') {
+    return {
+      embedUrl: `https://www.dailymotion.com/embed/video/${id}`,
+      watchUrl: `https://www.dailymotion.com/video/${id}`,
+      thumbnail: t.thumbnail,
+    }
+  }
+  return null
+}
+
+function episodeNumber(title: string) {
+  const m = /^Episode\s+(\d+(?:\.\d+)?)/i.exec(title)
+  return m ? Number(m[1]) : null
+}
+
+export async function fetchEntry(id: number): Promise<EntryDetail> {
   const data = await gql<{ Media: RawMedia }>(
-    `query ($id: Int) { Media(id: $id) { ${FIELDS} description(asHtml: false) } }`,
+    `query ($id: Int) { Media(id: $id) {
+      ${FIELDS} description(asHtml: false)
+      trailer { id site thumbnail }
+      externalLinks { site url type color language }
+      streamingEpisodes { title thumbnail url site }
+    } }`,
     { id },
   )
-  return toEntry(data.Media)
+  const m = data.Media
+  const links = (m.externalLinks ?? [])
+    .filter((l) => l.type === 'STREAMING' && l.url)
+    .map((l) => ({ site: l.site, url: https(l.url!), color: l.color, language: l.language }))
+  const episodeLinks = (m.streamingEpisodes ?? [])
+    .filter((e) => e.url && e.title)
+    .map((e) => ({
+      number: episodeNumber(e.title!),
+      title: e.title!,
+      thumbnail: e.thumbnail ? https(e.thumbnail) : null,
+      url: https(e.url!),
+      site: e.site ?? 'Official site',
+    }))
+    .sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity))
+  return { ...toEntry(m), trailer: toTrailer(m.trailer), links, episodeLinks }
 }
 
 export interface Themes {

@@ -10,6 +10,11 @@ TypeScript, Vite and Tailwind CSS, and packaged for Android/iOS with Capacitor.
 - **Genres** — pick a genre for any of the three
 - **Detail pages** — synopsis, score, format, status, episode/chapter/volume
   counts and genres; anime also list opening/ending song titles when available
+- **Watch / Read** — official trailers play in the app; every title lists the
+  official services that carry it (Crunchyroll, Netflix, Hulu, MANGA Plus,
+  VIZ…), and anime with Crunchyroll listings get a per-episode list. Links open
+  in the service's app if installed, otherwise the browser. The app never
+  hosts or streams episodes itself.
 - **Media Lab** — bring your own video clip and subtitle file(s) to try:
   - dual subtitle tracks
   - karaoke-style word highlighting for sing-alongs

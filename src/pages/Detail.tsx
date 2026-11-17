@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { ErrorRetry } from '../components/ErrorRetry'
 import { GenreChip } from '../components/GenreChip'
 import { Loader } from '../components/Loader'
+import { WatchSection } from '../components/WatchSection'
 import { fetchEntry, fetchThemes, type Themes } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 
@@ -66,6 +67,8 @@ export function Detail() {
       <p className="mt-6 whitespace-pre-line text-white/80">
         {e.description || 'No synopsis available.'}
       </p>
+
+      <WatchSection entry={e} />
 
       {themes && (themes.openings.length || themes.endings.length) ? (
         <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-4">
